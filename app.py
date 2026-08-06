@@ -26,6 +26,7 @@ import streamlit as st
 
 # Streamlit Page Setup
 st.set_page_config(page_title="Flashcard generator for notes", page_icon="📖", layout="wide")
+st.image("bg.png")
 
 # Sidebar Setup
 st.sidebar.title("API Configuration")
