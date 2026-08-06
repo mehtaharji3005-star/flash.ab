@@ -1,169 +1,180 @@
-import os
+from datetime import datetime
 import io
+from io import BytesIO
 import json
+import os
 import re
 import tempfile
-from datetime import datetime
-import streamlit as st
-import pandas as pd
-from dotenv import load_dotenv
+
 from docx import Document
-from pptx import Presentation
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import (
+    Docx2txtLoader,
+    PyPDFLoader,
+    TextLoader,
+    UnstructuredPowerPointLoader,
+)
 from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+import pandas as pd
+from pptx import Presentation
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+import streamlit as st
 
-
+# Streamlit Page Setup
 st.set_page_config(page_title="Flashcard generator for notes", page_icon="📖", layout="wide")
 
-st.sidebar.title("API Configuration")
-st.title("Flashcard generator for notes  ✈️ 🚗")
-
+st.title("Flashcard generator for notes ✈️ 🚗")
 
 # Sidebar - API Keys setup
+st.sidebar.title("API Configuration")
 st.sidebar.subheader("Provide Required API Keys")
 
 GOOGLE_API_KEY = st.sidebar.text_input("GOOGLE_API_KEY", type="password")
-os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
-all_API = [
-    GOOGLE_API_KEY
-]
-
-if not all(all_API):
-    st.error("❌ Please provide all API keys in the sidebar to proceed.")
+if not GOOGLE_API_KEY:
+    st.error("❌ Please provide the GOOGLE_API_KEY in the sidebar to proceed.")
     st.stop()
 else:
-    st.sidebar.success("✅ All API keys loaded successfully.")
+    os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+    st.sidebar.success("✅ API key loaded successfully.")
 
-response=model.invoke("hello buddy")
-print(response.content)
-
-flashcard_prompt = ChatPromptTemplate.from_template("""You are an advanced AI Flashcard Generator. Accept study notes uploaded by the user in PDF (.pdf), Microsoft Word (.docx), PowerPoint (.pptx), and Plain Text (.txt) formats. Automatically detect the uploaded file type, extract all readable text while preserving the document structure as much as possible, clean unnecessary formatting, split the content into meaningful chunks, and process it to generate high-quality flashcards. If multiple files are uploaded, combine and organize their content before generating flashcards. If a file is empty, corrupted, password-protected, or unsupported, display a clear and user-friendly error message asking the user to upload a valid PDF, DOCX, PPTX, or TXT file. Ensure the extracted content is accurate before passing it to the AI model for flashcard generation.""")
-print("done")
-
-flashcard_chain = (
-    flashcard_prompt
-    | model
-    | StrOutputParser()
-
+# Initialize LLM Model
+model = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",
+    google_api_key=GOOGLE_API_KEY
 )
 
-if st.button("Generate Flashcards"):
-    if extracted_text.strip():
-        with st.spinner("Generating Flashcards..."):
-            try:
-                flashcards = flashcard_chain.invoke(
-                    {"context": extracted_text}
-                )
+# Helper function to extract text from uploaded files
+def process_uploaded_files(uploaded_files):
+    combined_text = ""
+    for uploaded_file in uploaded_files:
+        suffix = os.path.splitext(uploaded_file.name)[1].lower()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+            tmp_file.write(uploaded_file.read())
+            tmp_path = tmp_file.name
 
-                if not isinstance(flashcards, str):
-                    flashcards = str(flashcards)
+        try:
+            if suffix == ".pdf":
+                loader = PyPDFLoader(tmp_path)
+            elif suffix == ".docx":
+                loader = Docx2txtLoader(tmp_path)
+            elif suffix == ".pptx":
+                loader = UnstructuredPowerPointLoader(tmp_path)
+            elif suffix == ".txt":
+                loader = TextLoader(tmp_path)
+            else:
+                st.warning(f"Unsupported file format: {uploaded_file.name}")
+                continue
 
-                st.success("Flashcards Generated Successfully!")
-                st.markdown("## 📚 Generated Flashcards")
-                st.divider()
-                st.markdown(flashcards, unsafe_allow_html=False)
+            docs = loader.load()
+            for doc in docs:
+                combined_text += doc.page_content + "\n"
 
-            except Exception as e:
-                st.error(f"Error: {e}")
+        except Exception as e:
+            st.error(f"Error reading file {uploaded_file.name}: {e}")
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
-    else:
-        st.warning("Please upload a PDF, DOCX, PPTX, or TXT file first.")
+    return combined_text
 
-def generate_flashcards(chain, extracted_text):
-    if not extracted_text or not extracted_text.strip():
-        st.warning("Please upload a PDF, DOCX, PPTX, or TXT file first.")
-        return
-
-    try:
-        with st.spinner("Generating Flashcards..."):
-            flashcards = chain.invoke({"context": extracted_text})
-
-        if not isinstance(flashcards, str):
-            flashcards = str(flashcards)
-
-        st.success("Flashcards Generated Successfully!")
-        st.markdown("## 📚 Generated Flashcards")
-        st.divider()
-        st.markdown(flashcards)
-
-        return flashcards
-
-    except Exception as e:
-        st.exception(e)
-        return None
-
-if st.button("Generate Flashcards"):
-    flashcards = generate_flashcards(
-        flashcard_chain,
-        extracted_text
-    )
-
-st.title("📚 AI Flashcard Generator")
-
-sample_notes = st.text_area(
-    "Enter or Paste Notes",
-    height=300,
-    value="""
-Python is a high-level programming language.
-It is interpreted, object-oriented, and easy to learn.
-Variables are used to store data.
-Functions are reusable blocks of code.
-Lists, Tuples, Dictionaries, and Sets are Python collections.
-"""
-)
-
-if st.button("Test Flashcard Generator"):
-    flashcards = generate_flashcards(
-        flashcard_chain,
-        sample_notes
-    )
-
-    if flashcards:
-        st.download_button(
-            "📥 Download Flashcards",
-            flashcards,
-            file_name="flashcards.txt",
-            mime="text/plain"
-        )
-from io import BytesIO
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
-
-def flashcards_to_pdf(flashcards):
+# PDF Generation Function
+def flashcards_to_pdf(flashcards_text):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
-
     story = []
 
-    for line in flashcards.split("\n"):
+    for line in flashcards_text.split("\n"):
         if line.strip():
             story.append(Paragraph(line.replace(" ", "&nbsp;"), styles["BodyText"]))
+            story.append(Spacer(1, 6))
 
     doc.build(story)
     buffer.seek(0)
-
     return buffer
 
-if st.button("Generate Flashcards"):
-    flashcards = generate_flashcards(
-        flashcard_chain,
-        notes
+# Prompt Template & Chain definition
+flashcard_prompt = ChatPromptTemplate.from_template(
+    """You are an advanced AI Flashcard Generator.
+    Analyze the following study content carefully and generate structured, high-quality Q&A flashcards.
+
+    Format each flashcard clearly as:
+    Front: [Question or Concept]
+    Back: [Answer or Explanation]
+
+    Study Notes:
+    {context}
+    """
+)
+
+flashcard_chain = flashcard_prompt | model | StrOutputParser()
+
+# UI Layout for Inputs
+tab1, tab2 = st.tabs(["📄 Upload Files", "✏️ Input Text Notes"])
+
+extracted_text = ""
+
+with tab1:
+    uploaded_files = st.file_uploader(
+        "Upload PDF, DOCX, PPTX, or TXT files",
+        type=["pdf", "docx", "pptx", "txt"],
+        accept_multiple_files=True
     )
+    if uploaded_files:
+        with st.spinner("Processing files..."):
+            extracted_text = process_uploaded_files(uploaded_files)
+            if extracted_text.strip():
+                st.success("Files processed successfully!")
 
-    if flashcards:
-        pdf = flashcards_to_pdf(flashcards)
+with tab2:
+    manual_notes = st.text_area(
+        "Enter or Paste Notes",
+        height=250,
+        placeholder="Paste your study notes here..."
+    )
+    if manual_notes.strip():
+        extracted_text = manual_notes
 
+# Flashcard Generation Action
+if st.button("Generate Flashcards"):
+    if not extracted_text.strip():
+        st.warning("Please upload a file or enter study notes first.")
+    else:
+        with st.spinner("Generating Flashcards..."):
+            try:
+                flashcards = flashcard_chain.invoke({"context": extracted_text})
+                
+                st.session_state["flashcards_result"] = flashcards
+                st.success("Flashcards Generated Successfully!")
+            except Exception as e:
+                st.error(f"Error generating flashcards: {e}")
+
+# Render Results and Download Buttons
+if "flashcards_result" in st.session_state and st.session_state["flashcards_result"]:
+    flashcards_output = st.session_state["flashcards_result"]
+
+    st.markdown("## 📚 Generated Flashcards")
+    st.divider()
+    st.markdown(flashcards_output)
+
+    col1, col2 = st.columns(2)
+    with col1:
         st.download_button(
-            label="📄 Download Flashcards as PDF",
-            data=pdf,
+            label="📥 Download as TXT",
+            data=flashcards_output,
+            file_name="flashcards.txt",
+            mime="text/plain"
+        )
+    with col2:
+        pdf_buffer = flashcards_to_pdf(flashcards_output)
+        st.download_button(
+            label="📄 Download as PDF",
+            data=pdf_buffer,
             file_name="Flashcards.pdf",
             mime="application/pdf"
         )
