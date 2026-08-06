@@ -1,0 +1,16 @@
+streamlit
+pandas
+python-dotenv
+python-docx
+python-pptx
+reportlab
+langchain
+langchain-core
+langchain-community
+langchain-google-genai
+langchain-text-splitters
+faiss-cpu
+pypdf
+docx2txt
+unstructured[pptx]
+google-generativeai
