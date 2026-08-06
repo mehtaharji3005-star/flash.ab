@@ -19,10 +19,28 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader
 
 
-model = ChatGoogleGenerativeAI(
-    model = "gemini-3.5-flash-lite",
-    google_api_key = os.environ["GOOGLE_API_KEY"]
-)
+st.set_page_config(page_title="Flashcard generator for notes", page_icon="📖", layout="wide")
+
+st.sidebar.title("API Configuration")
+st.title("Flashcard generator for notes  ✈️ 🚗")
+
+
+# Sidebar - API Keys setup
+st.sidebar.subheader("Provide Required API Keys")
+
+GOOGLE_API_KEY = st.sidebar.text_input("GOOGLE_API_KEY", type="password")
+os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+
+all_API = [
+    GOOGLE_API_KEY
+]
+
+if not all(all_API):
+    st.error("❌ Please provide all API keys in the sidebar to proceed.")
+    st.stop()
+else:
+    st.sidebar.success("✅ All API keys loaded successfully.")
+
 response=model.invoke("hello buddy")
 print(response.content)
 
