@@ -27,9 +27,7 @@ import streamlit as st
 # Streamlit Page Setup
 st.set_page_config(page_title="Flashcard generator for notes", page_icon="📖", layout="wide")
 
-st.title("Flashcard generator for notes ✈️ 🚗")
-
-# Sidebar - API Keys setup
+# Sidebar Setup
 st.sidebar.title("API Configuration")
 st.sidebar.subheader("Provide Required API Keys")
 
@@ -41,6 +39,12 @@ if not GOOGLE_API_KEY:
 else:
     os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
     st.sidebar.success("✅ API key loaded successfully.")
+
+# Display Banner Image from local file
+if os.path.exists("bg.png"):
+    st.image("bg.png", use_container_width=True)
+else:
+    st.title("Flashcard Generator for Notes ✈️ 🚗")
 
 # Initialize LLM Model
 model = ChatGoogleGenerativeAI(
@@ -141,14 +145,13 @@ with tab2:
         extracted_text = manual_notes
 
 # Flashcard Generation Action
-if st.button("Generate Flashcards"):
+if st.button("Generate Flashcards", type="primary"):
     if not extracted_text.strip():
         st.warning("Please upload a file or enter study notes first.")
     else:
         with st.spinner("Generating Flashcards..."):
             try:
                 flashcards = flashcard_chain.invoke({"context": extracted_text})
-                
                 st.session_state["flashcards_result"] = flashcards
                 st.success("Flashcards Generated Successfully!")
             except Exception as e:
