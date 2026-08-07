@@ -40,15 +40,19 @@ else:
     os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
     st.sidebar.success("✅ API key loaded successfully.")
 
-# Display Banner Image from local file
-if os.path.exists("bg.png"):
-    st.image("bg.png", use_container_width=True)
+# Display Banner Image from local file using reliable path matching
+script_dir = os.path.dirname(os.path.abspath(__file__))
+bg_image_path = os.path.join(script_dir, "bg.png")
+
+if os.path.exists(bg_image_path):
+    st.image(bg_image_path, use_container_width=True)
 else:
+    st.warning("⚠️ 'bg.png' not found. Placing fallback title.")
     st.title("Flashcard Generator for Notes ✈️ 🚗")
 
 # Initialize LLM Model
 model = ChatGoogleGenerativeAI(
-    model="gemini-3.5-flash",
+    model="gemini-1.5-flash",
     google_api_key=GOOGLE_API_KEY
 )
 
